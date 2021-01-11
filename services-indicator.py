@@ -33,21 +33,55 @@ gi.require_version('AppIndicator3', '0.1')
 from gi.repository import Gtk
 from gi.repository import AppIndicator3 as AppIndicator
 
+import subprocess
+import re
 
-def menu_activate_quit(w):
+service_menu_items = list()
+
+
+class ServicesCommand:
+    def list(self):
+        output = subprocess.check_output(['service', '--status-all']).decode('utf-8')
+        for line in output.split('\n'):
+            parts = re.match('\\s\\[(.*)]\\s+(.*)', line)
+            if parts is not None:
+                status = parts.group(1).strip()
+                name = parts.group(2)
+                yield name, status
+
+
+def menu_quit(w):
     Gtk.main_quit()
+
+
+def menu_refresh(w):
+    refresh_services_list()
 
 
 def menu_activate_noop(w):
     pass
 
 
-def menuitem_register(label, activate_callback=menu_activate_noop):
-    menu_items = Gtk.MenuItem(label=label)
-    menu_items.connect("activate", activate_callback)
-    menu_items.show()
+def menuitem_create(label, activate_callback=menu_activate_noop):
+    item = Gtk.MenuItem(label=label)
+    item.connect("activate", activate_callback)
+    item.show()
+    return item
 
-    menu.append(menu_items)
+
+def refresh_services_list():
+    for mi in menu_services:
+        menu.remove(mi)
+
+    for (name, status) in get_command().list():
+        menuitem = menuitem_create('%s [%s]' % (name, status))
+        menu_services.append(menuitem)
+
+        menu.append(menuitem)
+
+
+def get_command():
+    return ServicesCommand()
 
 
 if __name__ == "__main__":
@@ -57,13 +91,22 @@ if __name__ == "__main__":
 
     # create a menu
     menu = Gtk.Menu()
+    menu_services = list()
 
     # create some
-    menuitem_register("Test-undermenu - %d" % 1)
-    menuitem_register("Test-undermenu - %d" % 2)
-    menuitem_register("Test-undermenu - %d" % 3)
-    menuitem_register("Quit", menu_activate_quit)
+    menu.append(menuitem_create("Refresh", menu_refresh))
+    menu.append(menuitem_create("Quit", menu_quit))
+
+    separator = Gtk.SeparatorMenuItem()
+    separator.show()
+    menu.append(separator)
+
+    # menuitem_register("Test-undermenu - %d" % 1)
+    # menuitem_register("Test-undermenu - %d" % 2)
+    # menuitem_register("Test-undermenu - %d" % 3)
 
     ind.set_menu(menu)
+
+    refresh_services_list()
 
     Gtk.main()
